@@ -44,6 +44,8 @@ public class CheckingTimeBot extends TelegramLongPollingBot {
       handleGetOut(chatId, msg);
     } else if (msg.startsWith("/getin")) {
       handleGetIn(chatId, msg);
+    } else if (msg.startsWith("/reset")) {
+      handleReset(chatId);
     }
   }
 
@@ -155,6 +157,23 @@ public class CheckingTimeBot extends TelegramLongPollingBot {
     } catch (Exception e) {
       sendText(chatId, "❌ Cú pháp không hợp lệ. Vui lòng nhập: /getin hoặc /getin HH:mm");
     }
+  }
+
+  private void handleReset(Long chatId) {
+    // Hủy tất cả job của user
+    Map<String, ScheduledFuture<?>> tasks = userSchedulers.remove(chatId);
+    if (tasks != null) {
+      for (ScheduledFuture<?> task : tasks.values()) {
+        if (task != null && !task.isDone()) {
+          task.cancel(true);
+        }
+      }
+    }
+
+    // Xóa trạng thái user
+    userStates.remove(chatId);
+
+    sendText(chatId, "🔄 Ứng dụng đã được reset về trạng thái ban đầu.");
   }
 
   private void sendText(Long chatId, String text) {
