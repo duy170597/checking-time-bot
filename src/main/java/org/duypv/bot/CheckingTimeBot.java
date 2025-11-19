@@ -2,6 +2,7 @@ package org.duypv.bot;
 
 import java.time.Duration;
 import java.time.LocalTime;
+import java.time.ZoneId;
 import java.time.temporal.ChronoUnit;
 import java.util.Map;
 import java.util.concurrent.*;
@@ -21,6 +22,9 @@ public class CheckingTimeBot extends TelegramLongPollingBot {
 
   private static final long MAX_OUT_DURATION_MINUTES = 60;
   private static final long MAX_SINGLE_OUT_DURATION_MINUTES = 30;
+
+  // ZoneId cho Việt Nam
+  private static final ZoneId VN_ZONE = ZoneId.of("Asia/Ho_Chi_Minh");
 
   public CheckingTimeBot() {
     super("8326903819:AAGBEknxLkZp_XdS8Z6H0AdD1ElFCoPX6nY");
@@ -51,7 +55,7 @@ public class CheckingTimeBot extends TelegramLongPollingBot {
 
   private void handleCheckIn(Long chatId, String msg) {
     try {
-      LocalTime now = LocalTime.now().truncatedTo(ChronoUnit.MINUTES);
+      LocalTime now = LocalTime.now(VN_ZONE).truncatedTo(ChronoUnit.MINUTES);
       LocalTime checkin;
       String[] parts = msg.split(" ");
       if (parts.length == 1) {
@@ -82,7 +86,7 @@ public class CheckingTimeBot extends TelegramLongPollingBot {
       String[] parts = msg.split(" ");
       if (parts.length == 1) {
         // Không có HH:mm → lấy thời gian hiện tại
-        getOut = LocalTime.now().truncatedTo(ChronoUnit.MINUTES);
+        getOut = LocalTime.now(VN_ZONE).truncatedTo(ChronoUnit.MINUTES);
       } else {
         // Có HH:mm → parse thời gian từ input
         getOut = LocalTime.parse(parts[1]).truncatedTo(ChronoUnit.MINUTES);
@@ -112,7 +116,7 @@ public class CheckingTimeBot extends TelegramLongPollingBot {
       String[] parts = msg.split(" ");
       if (parts.length == 1) {
         // Không có HH:mm → lấy thời gian hiện tại
-        getIn = LocalTime.now().truncatedTo(ChronoUnit.MINUTES);
+        getIn = LocalTime.now(VN_ZONE).truncatedTo(ChronoUnit.MINUTES);
       } else {
         // Có HH:mm → parse thời gian từ input
         getIn = LocalTime.parse(parts[1]).truncatedTo(ChronoUnit.MINUTES);
