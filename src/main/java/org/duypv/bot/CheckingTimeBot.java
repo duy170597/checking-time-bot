@@ -62,19 +62,23 @@ public class CheckingTimeBot extends TelegramLongPollingBot {
       String[] parts = msg.split(" ");
       if (parts.length == 1) {
         checkin = now;
-        sendText(chatId, "✅ Bạn đã check-in lúc " + checkin);
       } else {
-        checkin = LocalTime.parse(parts[1]);
-        sendText(chatId, "✅ Bạn đã check-in lúc " + checkin);
+        checkin = LocalTime.parse(parts[1]).truncatedTo(ChronoUnit.MINUTES);
       }
 
       LocalTime checkout = checkin.plusHours(9).plusMinutes(48);
-      sendText(chatId, "⏰ Thời gian check-out dự kiến: " + checkout);
 
       // Lưu vào trạng thái user
       UserState state = userStates.computeIfAbsent(chatId, k -> new UserState());
       state.lastCheckIn = checkin;
       state.expectedCheckOut = checkout;
+
+      // Gộp message
+      StringBuilder sb = new StringBuilder();
+      sb.append("✅ Bạn đã check-in lúc ").append(checkin).append("\n");
+      sb.append("⏰ Thời gian check-out dự kiến: ").append(checkout);
+
+      sendText(chatId, sb.toString());
 
       long delay = Duration.between(now, checkout).toMillis();
       if (delay > 0) {
@@ -98,14 +102,18 @@ public class CheckingTimeBot extends TelegramLongPollingBot {
         // Có HH:mm → parse thời gian từ input
         getOut = LocalTime.parse(parts[1]).truncatedTo(ChronoUnit.MINUTES);
       }
-      sendText(chatId, "🚪 Bạn đã get-out lúc " + getOut);
 
       // Lưu lại thời điểm get-out
       UserState state = userStates.computeIfAbsent(chatId, k -> new UserState());
       state.lastGetOut = getOut;
 
       LocalTime getIn = getOut.plusMinutes(30);
-      sendText(chatId, "🔙 Thời gian get-in tối đa: " + getIn);
+
+      StringBuilder sb = new StringBuilder();
+      sb.append("🚪 Bạn đã get-out lúc ").append(getOut).append("\n");
+      sb.append("🔙 Thời gian get-in tối đa: ").append(getIn);
+
+      sendText(chatId, sb.toString());
 
       ScheduledFuture<?> alertTask = scheduler.schedule(
           () -> sendText(chatId, "🔔 Nhắc nhở: Chuẩn bị get-in trước 10 phút"),
@@ -128,9 +136,12 @@ public class CheckingTimeBot extends TelegramLongPollingBot {
         // Có HH:mm → parse thời gian từ input
         getIn = LocalTime.parse(parts[1]).truncatedTo(ChronoUnit.MINUTES);
       }
-      sendText(chatId, "🔙 Bạn đã get-in lúc " + getIn);
 
       UserState state = userStates.computeIfAbsent(chatId, k -> new UserState());
+
+      StringBuilder sb = new StringBuilder();
+      sb.append("🔙 Bạn đã get-in lúc ").append(getIn).append("\n");
+
       if (state.lastGetOut != null) {
         Duration outDuration = Duration.between(state.lastGetOut, getIn);
         state.totalOutDuration = state.totalOutDuration.plus(outDuration);
@@ -138,24 +149,26 @@ public class CheckingTimeBot extends TelegramLongPollingBot {
         long minutesThisOut = outDuration.toMinutes();
         long totalMinutes = state.totalOutDuration.toMinutes();
 
-        sendText(chatId, "📊 Thời gian đi ra ngoài lần này: " + minutesThisOut + " phút");
-        sendText(chatId, "📊 Tổng thời gian đã đi ra ngoài: " + totalMinutes + " phút");
+        sb.append("📊 Thời gian đi ra ngoài lần này: ").append(minutesThisOut).append(" phút\n");
+        sb.append("📊 Tổng thời gian đã đi ra ngoài: ").append(totalMinutes).append(" phút\n");
 
         // ⚠️ Cảnh báo nếu đi ra ngoài quá lâu
         if (minutesThisOut > MAX_SINGLE_OUT_DURATION_MINUTES) {
-          sendText(chatId, "⚠️ Cảnh báo: Bạn đã đi ra ngoài hơn 30 phút!");
+          sb.append("⚠️ Cảnh báo: Bạn đã đi ra ngoài hơn 30 phút!\n");
         }
 
         // ⚠️ Cảnh báo nếu tổng >= 1 giờ
         if (totalMinutes >= MAX_OUT_DURATION_MINUTES) {
-          sendText(chatId, "⚠️ Cảnh báo: Tổng thời gian đi ra ngoài đã vượt quá 1 giờ!");
+          sb.append("⚠️ Cảnh báo: Tổng thời gian đi ra ngoài đã vượt quá 1 giờ!\n");
         }
 
         // Reset lastGetOut để tránh tính lại
         state.lastGetOut = null;
       } else {
-        sendText(chatId, "⚠️ Bạn chưa có lần get-out nào để tính thời gian.");
+        sb.append("⚠️ Bạn chưa có lần get-out nào để tính thời gian.\n");
       }
+
+      sendText(chatId, sb.toString());
 
       // 🗑️ Xóa job GET_IN_ALERT nếu còn tồn tại
       Map<String, ScheduledFuture<?>> tasks = userSchedulers.get(chatId);
