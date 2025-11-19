@@ -50,6 +50,8 @@ public class CheckingTimeBot extends TelegramLongPollingBot {
       handleGetIn(chatId, msg);
     } else if (msg.startsWith("/reset")) {
       handleReset(chatId);
+    } else if (msg.startsWith("/report")) {
+      handleReport(chatId);
     }
   }
 
@@ -68,6 +70,11 @@ public class CheckingTimeBot extends TelegramLongPollingBot {
 
       LocalTime checkout = checkin.plusHours(9).plusMinutes(48);
       sendText(chatId, "⏰ Thời gian check-out dự kiến: " + checkout);
+
+      // Lưu vào trạng thái user
+      UserState state = userStates.computeIfAbsent(chatId, k -> new UserState());
+      state.lastCheckIn = checkin;
+      state.expectedCheckOut = checkout;
 
       long delay = Duration.between(now, checkout).toMillis();
       if (delay > 0) {
@@ -180,6 +187,24 @@ public class CheckingTimeBot extends TelegramLongPollingBot {
     sendText(chatId, "🔄 Ứng dụng đã được reset về trạng thái ban đầu.");
   }
 
+  private void handleReport(Long chatId) {
+    UserState state = userStates.get(chatId);
+    if (state == null || state.lastCheckIn == null) {
+      sendText(chatId, "⚠️ Bạn chưa check-in nên chưa có báo cáo.");
+      return;
+    }
+
+    StringBuilder report = new StringBuilder();
+    report.append("✅ Thời gian check-in: ").append(state.lastCheckIn).append("\n");
+    if (state.expectedCheckOut != null) {
+      report.append("⏰ Thời gian check-out dự kiến: ").append(state.expectedCheckOut).append("\n");
+    }
+    report.append("📊 Tổng thời gian đã đi ra ngoài: ")
+        .append(state.totalOutDuration.toMinutes()).append(" phút");
+
+    sendText(chatId, report.toString());
+  }
+
   private void sendText(Long chatId, String text) {
     SendMessage message = new SendMessage(chatId.toString(), text);
     try {
@@ -198,5 +223,7 @@ public class CheckingTimeBot extends TelegramLongPollingBot {
   static class UserState {
     LocalTime lastGetOut;
     Duration totalOutDuration = Duration.ZERO;
+    LocalTime lastCheckIn;
+    LocalTime expectedCheckOut;
   }
 }
