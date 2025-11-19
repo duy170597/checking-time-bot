@@ -1,1 +1,0 @@
-web: java -jar target/my-bot-1.0-SNAPSHOT-shaded.jar
