@@ -42,16 +42,17 @@ public class CheckingTimeBot extends TelegramLongPollingBot {
 
         String msg = update.getMessage().getText();
         Long chatId = update.getMessage().getChatId();
+        log.info("Received message from {}: {}", chatId, msg);
 
-        if (msg.startsWith("/checkin")) {
+        if (msg.startsWith("/ci")) {
             handleCheckIn(chatId, msg);
-        } else if (msg.startsWith("/getout")) {
+        } else if (msg.startsWith("/go")) {
             handleGetOut(chatId, msg);
-        } else if (msg.startsWith("/getin")) {
+        } else if (msg.startsWith("/gi")) {
             handleGetIn(chatId, msg);
-        } else if (msg.startsWith("/reset")) {
+        } else if (msg.startsWith("/rs")) {
             handleReset(chatId);
-        } else if (msg.startsWith("/report")) {
+        } else if (msg.startsWith("/rp")) {
             handleReport(chatId);
         }
     }
