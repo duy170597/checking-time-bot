@@ -108,7 +108,7 @@ public class CheckingTimeBot extends TelegramLongPollingBot {
                         }, delayBefore, TimeUnit.MILLISECONDS));
             }
         } catch (Exception e) {
-            sendText(chatId, "❌ Cú pháp không hợp lệ. Vui lòng nhập: /checkin hoặc /checkin HH:mm");
+            sendText(chatId, "❌ Cú pháp không hợp lệ. Vui lòng nhập: /ci hoặc /ci HH:mm");
         }
     }
 
@@ -137,12 +137,12 @@ public class CheckingTimeBot extends TelegramLongPollingBot {
             sendText(chatId, sb.toString());
 
             ScheduledFuture<?> alertTask = scheduler.schedule(
-                    () -> sendText(chatId, "🔔 Nhắc nhở: Chuẩn bị get-in trước 10 phút"),
-                    Duration.ofMinutes(20).toMillis(),
+                    () -> sendText(chatId, "🔔 Nhắc nhở: Chuẩn bị get-in trước " + getIn),
+                    Duration.ofMinutes(15).toMillis(),
                     TimeUnit.MILLISECONDS);
             scheduleAndReplace(chatId, "GET_IN_ALERT", alertTask);
         } catch (Exception e) {
-            sendText(chatId, "❌ Cú pháp không hợp lệ. Vui lòng nhập: /getout hoặc /getout HH:mm");
+            sendText(chatId, "❌ Cú pháp không hợp lệ. Vui lòng nhập: /go hoặc /go HH:mm");
         }
     }
 
@@ -201,7 +201,7 @@ public class CheckingTimeBot extends TelegramLongPollingBot {
                 }
             }
         } catch (Exception e) {
-            sendText(chatId, "❌ Cú pháp không hợp lệ. Vui lòng nhập: /getin hoặc /getin HH:mm");
+            sendText(chatId, "❌ Cú pháp không hợp lệ. Vui lòng nhập: /gi hoặc /gi HH:mm");
         }
     }
 
