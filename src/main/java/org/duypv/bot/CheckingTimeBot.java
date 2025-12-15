@@ -46,6 +46,8 @@ public class CheckingTimeBot extends TelegramLongPollingBot {
 
         if (msg.startsWith("/ci")) {
             handleCheckIn(chatId, msg);
+        } else if (msg.startsWith("/co")) {
+            handleCheckOut(chatId);
         } else if (msg.startsWith("/go")) {
             handleGetOut(chatId, msg);
         } else if (msg.startsWith("/gi")) {
@@ -81,35 +83,38 @@ public class CheckingTimeBot extends TelegramLongPollingBot {
             sb.append("⏰ Thời gian check-out dự kiến: ").append(checkout);
             sendText(chatId, sb.toString());
 
-            // Nhắc đúng giờ check-out
-            long delay = Duration.between(now, checkout).toMillis();
-            if (delay > 0) {
-                scheduleAndReplace(chatId, "CHECK_OUT_ALERT",
-                        scheduler.schedule(() -> sendText(chatId, "🔔 Nhắc nhở: Đã đến giờ check-out (" + checkout + ")"),
-                                delay, TimeUnit.MILLISECONDS));
-            }
-
-            // Nhắc 10 phút trước giờ check-out với báo cáo
+            // Nhắc 10 phút trước giờ check-out (chỉ thông báo đơn giản)
             long delayBefore = Duration.between(now, checkout.minusMinutes(10)).toMillis();
             if (delayBefore > 0) {
                 scheduleAndReplace(chatId, "CHECK_OUT_ALERT_BEFORE",
-                        scheduler.schedule(() -> {
-                            UserState st = userStates.get(chatId);
-                            long totalMinutes = st != null ? st.totalOutDuration.toMinutes() : 0;
-
-                            String report = "*📋 Báo cáo:*\n"
-                                    + "  ✅ Bạn đã check-in lúc " + checkin + "\n"
-                                    + "  ⏰ Thời gian check-out dự kiến: " + checkout + "\n"
-                                    + "  📊 Tổng thời gian đã đi ra ngoài: " + totalMinutes + " phút\n"
-                                    + "  🔢 Số lần đi ra ngoài quá 30 phút: "
-                                    + (st != null ? st.over30Count : 0) + " lần";
-
-                            sendText(chatId, report);
-                        }, delayBefore, TimeUnit.MILLISECONDS));
+                        scheduler.schedule(() -> sendText(chatId,
+                                        "🔔 Nhắc nhở: Gần đến giờ check-out (" + checkout + ")"),
+                                delayBefore, TimeUnit.MILLISECONDS));
             }
         } catch (Exception e) {
             sendText(chatId, "❌ Cú pháp không hợp lệ. Vui lòng nhập: /ci hoặc /ci HH:mm");
         }
+    }
+
+    private void handleCheckOut(Long chatId) {
+        UserState st = userStates.get(chatId);
+        if (st == null || st.lastCheckIn == null || st.expectedCheckOut == null) {
+            sendText(chatId, "⚠️ Bạn chưa check-in nên chưa có báo cáo.");
+            return;
+        }
+
+        long totalMinutes = st.totalOutDuration.toMinutes();
+        Duration workingDuration = Duration.between(st.lastCheckIn, st.expectedCheckOut);
+        long workingTime = workingDuration.toMinutes();
+
+        String report = "*📋 Báo cáo:*\n"
+                + "  🟢 Bạn đã check-in lúc " + st.lastCheckIn + "\n"
+                + "  🔴 Bạn đã check-out lúc: " + st.expectedCheckOut + "\n"
+                + "  ⏳ Tổng thời gian làm việc: " + workingTime + " phút\n"
+                + "  📊 Tổng thời gian đã đi ra ngoài: " + totalMinutes + " phút\n"
+                + "  🔢 Số lần đi ra ngoài quá 30 phút: " + st.over30Count + " lần";
+
+        sendText(chatId, report);
     }
 
     private void handleGetOut(Long chatId, String msg) {
