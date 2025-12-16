@@ -47,7 +47,7 @@ public class CheckingTimeBot extends TelegramLongPollingBot {
         if (msg.startsWith("/ci")) {
             handleCheckIn(chatId, msg);
         } else if (msg.startsWith("/co")) {
-            handleCheckOut(chatId);
+            handleCheckOut(chatId, msg);
         } else if (msg.startsWith("/go")) {
             handleGetOut(chatId, msg);
         } else if (msg.startsWith("/gi")) {
@@ -96,25 +96,40 @@ public class CheckingTimeBot extends TelegramLongPollingBot {
         }
     }
 
-    private void handleCheckOut(Long chatId) {
-        UserState st = userStates.get(chatId);
-        if (st == null || st.lastCheckIn == null || st.expectedCheckOut == null) {
-            sendText(chatId, "⚠️ Bạn chưa check-in nên chưa có báo cáo.");
-            return;
+    private void handleCheckOut(Long chatId, String msg) {
+        try {
+            UserState st = userStates.get(chatId);
+            if (st == null || st.lastCheckIn == null) {
+                sendText(chatId, "⚠️ Bạn chưa check-in nên chưa có báo cáo.");
+                return;
+            }
+
+            LocalTime checkoutActual;
+            String[] parts = msg.split(" ");
+            if (parts.length == 1) {
+                checkoutActual = LocalTime.now(VN_ZONE).truncatedTo(ChronoUnit.MINUTES);
+            } else {
+                checkoutActual = LocalTime.parse(parts[1]).truncatedTo(ChronoUnit.MINUTES);
+            }
+
+            long totalMinutes = st.totalOutDuration.toMinutes();
+            Duration workingDuration = Duration.between(st.lastCheckIn, checkoutActual);
+
+            long hours = workingDuration.toHours();
+            long minutes = workingDuration.toMinutes() % 60;
+
+            String report = "*📋 Báo cáo:*\n"
+                    + "  🟢 Bạn đã check-in lúc " + st.lastCheckIn + "\n"
+                    + "  🔴 Bạn đã check-out lúc: " + checkoutActual + "\n"
+                    + "  ⏳ Tổng thời gian làm việc: " + hours + " giờ " + minutes + " phút\n"
+                    + "  📊 Tổng thời gian đã đi ra ngoài: " + totalMinutes + " phút\n"
+                    + "  🔢 Số lần đi ra ngoài quá 30 phút: " + st.over30Count + " lần";
+
+            sendText(chatId, report);
+
+        } catch (Exception e) {
+            sendText(chatId, "❌ Cú pháp không hợp lệ. Vui lòng nhập: /co hoặc /co HH:mm");
         }
-
-        long totalMinutes = st.totalOutDuration.toMinutes();
-        Duration workingDuration = Duration.between(st.lastCheckIn, st.expectedCheckOut);
-        long workingTime = workingDuration.toMinutes();
-
-        String report = "*📋 Báo cáo:*\n"
-                + "  🟢 Bạn đã check-in lúc " + st.lastCheckIn + "\n"
-                + "  🔴 Bạn đã check-out lúc: " + st.expectedCheckOut + "\n"
-                + "  ⏳ Tổng thời gian làm việc: " + workingTime + " phút\n"
-                + "  📊 Tổng thời gian đã đi ra ngoài: " + totalMinutes + " phút\n"
-                + "  🔢 Số lần đi ra ngoài quá 30 phút: " + st.over30Count + " lần";
-
-        sendText(chatId, report);
     }
 
     private void handleGetOut(Long chatId, String msg) {
