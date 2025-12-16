@@ -113,7 +113,23 @@ public class CheckingTimeBot extends TelegramLongPollingBot {
             }
 
             long totalMinutes = st.totalOutDuration.toMinutes();
+
+            // Tính thời gian làm việc ban đầu
             Duration workingDuration = Duration.between(st.lastCheckIn, checkoutActual);
+
+            // Trừ đi thời gian nghỉ trưa (12:00 - 13:00)
+            LocalTime lunchStart = LocalTime.of(12, 0);
+            LocalTime lunchEnd = LocalTime.of(13, 0);
+
+            // Nếu khoảng làm việc có giao với khoảng nghỉ trưa
+            if (checkoutActual.isAfter(lunchStart) && st.lastCheckIn.isBefore(lunchEnd)) {
+                LocalTime overlapStart = st.lastCheckIn.isAfter(lunchStart) ? st.lastCheckIn : lunchStart;
+                LocalTime overlapEnd = checkoutActual.isBefore(lunchEnd) ? checkoutActual : lunchEnd;
+                if (overlapEnd.isAfter(overlapStart)) {
+                    Duration lunchBreak = Duration.between(overlapStart, overlapEnd);
+                    workingDuration = workingDuration.minus(lunchBreak);
+                }
+            }
 
             long hours = workingDuration.toHours();
             long minutes = workingDuration.toMinutes() % 60;
