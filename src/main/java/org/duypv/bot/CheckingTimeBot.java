@@ -53,7 +53,7 @@ public class CheckingTimeBot extends TelegramLongPollingBot {
         } else if (msg.startsWith("/gi")) {
             handleGetIn(chatId, msg);
         } else if (msg.startsWith("/rs")) {
-            handleReset(chatId);
+            handleReset(chatId, true);
         } else if (msg.startsWith("/rp")) {
             handleReport(chatId);
         }
@@ -142,6 +142,9 @@ public class CheckingTimeBot extends TelegramLongPollingBot {
                     + "  🔢 Số lần đi ra ngoài quá 30 phút: " + st.over30Count + " lần";
 
             sendText(chatId, report);
+
+            // Reset trạng thái user sau khi check-out
+            handleReset(chatId, false);
 
         } catch (Exception e) {
             sendText(chatId, "❌ Cú pháp không hợp lệ. Vui lòng nhập: /co hoặc /co HH:mm");
@@ -241,7 +244,7 @@ public class CheckingTimeBot extends TelegramLongPollingBot {
         }
     }
 
-    private void handleReset(Long chatId) {
+    private void handleReset(Long chatId, boolean isSendText) {
         // Hủy tất cả job của user
         Map<String, ScheduledFuture<?>> tasks = userSchedulers.remove(chatId);
         if (tasks != null) {
@@ -255,7 +258,9 @@ public class CheckingTimeBot extends TelegramLongPollingBot {
         // Xóa trạng thái user
         userStates.remove(chatId);
 
-        sendText(chatId, "🔄 Ứng dụng đã được reset về trạng thái ban đầu.");
+        if (isSendText) {
+            sendText(chatId, "🔄 Ứng dụng đã được reset về trạng thái ban đầu.");
+        }
     }
 
     private void handleReport(Long chatId) {
