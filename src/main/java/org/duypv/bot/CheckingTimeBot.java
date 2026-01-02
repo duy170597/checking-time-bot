@@ -56,6 +56,10 @@ public class CheckingTimeBot extends TelegramLongPollingBot {
             handleReset(chatId, true);
         } else if (msg.startsWith("/rp")) {
             handleReport(chatId);
+        } else if (msg.startsWith("/lo")) {
+            handleLunchOut(chatId, msg);
+        } else if (msg.startsWith("/li")) {
+            handleLunchIn(chatId, msg);
         }
     }
 
@@ -156,29 +160,23 @@ public class CheckingTimeBot extends TelegramLongPollingBot {
             LocalTime getOut;
             String[] parts = msg.split(" ");
             if (parts.length == 1) {
-                // Không có HH:mm → lấy thời gian hiện tại
                 getOut = LocalTime.now(VN_ZONE).truncatedTo(ChronoUnit.MINUTES);
             } else {
-                // Có HH:mm → parse thời gian từ input
                 getOut = LocalTime.parse(parts[1]).truncatedTo(ChronoUnit.MINUTES);
             }
-
-            // Lưu lại thời điểm get-out
             UserState state = userStates.computeIfAbsent(chatId, k -> new UserState());
             state.lastGetOut = getOut;
-
-            LocalTime getIn = getOut.plusMinutes(30);
-
+            long remaining = MAX_OUT_DURATION_MINUTES - state.totalOutDuration.toMinutes();
+            long addMinutes = Math.min(MAX_SINGLE_OUT_DURATION_MINUTES, Math.max(0, remaining));
+            LocalTime getIn = getOut.plusMinutes(addMinutes);
             StringBuilder sb = new StringBuilder();
             sb.append("🚪 Bạn đã get-out lúc ").append(getOut).append("\n");
-            sb.append("🔙 Thời gian get-in tối đa: ").append(getIn);
-
+            sb.append("🔙 Thời gian get-in tối đa: ").append(getIn).append("\n");
+            if (remaining <= 0) {
+                sb.append("⚠️ Cảnh báo: Bạn không nên ra ngoài vì đã vượt quá 1 giờ cho phép!\n");
+            }
             sendText(chatId, sb.toString());
-
-            ScheduledFuture<?> alertTask = scheduler.schedule(
-                    () -> sendText(chatId, "🔔 Nhắc nhở: Chuẩn bị get-in trước " + getIn),
-                    Duration.ofMinutes(15).toMillis(),
-                    TimeUnit.MILLISECONDS);
+            ScheduledFuture<?> alertTask = scheduler.schedule(() -> sendText(chatId, "🔔 Nhắc nhở: Chuẩn bị get-in trước " + getIn), Duration.ofMinutes(Math.min(15, addMinutes)).toMillis(), TimeUnit.MILLISECONDS);
             scheduleAndReplace(chatId, "GET_IN_ALERT", alertTask);
         } catch (Exception e) {
             sendText(chatId, "❌ Cú pháp không hợp lệ. Vui lòng nhập: /go hoặc /go HH:mm");
@@ -281,6 +279,90 @@ public class CheckingTimeBot extends TelegramLongPollingBot {
         sendText(chatId, report.toString());
     }
 
+    private void handleLunchOut(Long chatId, String msg) {
+        try {
+            LocalTime lunchOut;
+            String[] parts = msg.split(" ");
+            if (parts.length == 1) {
+                lunchOut = LocalTime.now(VN_ZONE).truncatedTo(ChronoUnit.MINUTES);
+            } else {
+                lunchOut = LocalTime.parse(parts[1]).truncatedTo(ChronoUnit.MINUTES);
+            }
+
+            UserState state = userStates.computeIfAbsent(chatId, k -> new UserState());
+
+            LocalTime minLunchStart = LocalTime.of(11, 30);
+            if (lunchOut.isBefore(minLunchStart)) {
+                Duration extra = Duration.between(lunchOut, minLunchStart);
+                state.totalOutDuration = state.totalOutDuration.plus(extra);
+                lunchOut = minLunchStart;
+            }
+
+            state.lastLunchOut = lunchOut;
+            state.isLunching = true;
+
+            // Tính giờ tối đa phải quay về: lunchOut + 1h30
+            LocalTime maxLunchIn = lunchOut.plusHours(1).plusMinutes(30);
+
+            StringBuilder sb = new StringBuilder();
+            sb.append("🍽️ Bạn đã bắt đầu ăn trưa lúc ").append(lunchOut).append("\n");
+            sb.append("⏰ Thời gian tối đa phải quay về sau khi ăn trưa: ").append(maxLunchIn);
+
+            sendText(chatId, sb.toString());
+        } catch (Exception e) {
+            sendText(chatId, "❌ Cú pháp không hợp lệ. Vui lòng nhập: /lo hoặc /lo HH:mm");
+        }
+    }
+
+    private void handleLunchIn(Long chatId, String msg) {
+        try {
+            LocalTime lunchIn;
+            String[] parts = msg.split(" ");
+            if (parts.length == 1) {
+                lunchIn = LocalTime.now(VN_ZONE).truncatedTo(ChronoUnit.MINUTES);
+            } else {
+                lunchIn = LocalTime.parse(parts[1]).truncatedTo(ChronoUnit.MINUTES);
+            }
+
+            UserState state = userStates.computeIfAbsent(chatId, k -> new UserState());
+
+            if (state.lastLunchOut == null || !state.isLunching) {
+                sendText(chatId, "⚠️ Bạn chưa bắt đầu ăn trưa bằng /lo.");
+                return;
+            }
+
+            Duration lunchDuration = Duration.between(state.lastLunchOut, lunchIn);
+            long minutesLunch = lunchDuration.toMinutes();
+
+            StringBuilder sb = new StringBuilder();
+            sb.append("🍽️ Bạn đã kết thúc ăn trưa lúc ").append(lunchIn).append("\n");
+            sb.append("⏳ Thời gian ăn trưa: ").append(minutesLunch).append(" phút\n");
+
+            // Nếu ăn trưa > 60 phút → phần vượt quá cộng vào totalOutDuration
+            if (minutesLunch > 60) {
+                long exceed = minutesLunch - 60;
+                state.totalOutDuration = state.totalOutDuration.plusMinutes(exceed);
+                sb.append("⚠️ Bạn đã ăn trưa vượt quá 1 giờ, cộng thêm ").append(exceed).append(" phút vào tổng thời gian ra ngoài.\n");
+            }
+
+            // Quy tắc giống /go, /gi
+            if (minutesLunch > (60 + MAX_SINGLE_OUT_DURATION_MINUTES)) {
+                sb.append("⚠️ Cảnh báo: Thời gian ăn trưa vượt quá 1h30!\n");
+                state.over30Count++;
+            }
+
+            sb.append("📊 Tổng thời gian đã đi ra ngoài: ").append(state.totalOutDuration.toMinutes()).append(" phút\n");
+
+            state.lastLunchOut = null;
+            state.isLunching = false;
+
+            sendText(chatId, sb.toString());
+        } catch (Exception e) {
+            sendText(chatId, "❌ Cú pháp không hợp lệ. Vui lòng nhập: /li hoặc /li HH:mm");
+        }
+    }
+
+
     private void sendText(Long chatId, String text) {
         SendMessage message = new SendMessage(chatId.toString(), text);
         message.setParseMode("Markdown"); // hoặc "MarkdownV2"
@@ -303,5 +385,7 @@ public class CheckingTimeBot extends TelegramLongPollingBot {
         LocalTime lastCheckIn;
         LocalTime expectedCheckOut;
         int over30Count = 0; // số lần đi ra ngoài quá 30 phút
+        LocalTime lastLunchOut;
+        boolean isLunching = false;
     }
 }
