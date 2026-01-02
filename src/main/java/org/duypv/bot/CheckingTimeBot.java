@@ -60,6 +60,10 @@ public class CheckingTimeBot extends TelegramLongPollingBot {
             handleLunchOut(chatId, msg);
         } else if (msg.startsWith("/li")) {
             handleLunchIn(chatId, msg);
+        } else if (msg.startsWith("/help")) {
+            handleHelp(chatId);
+        } else if (msg.startsWith("/")) {
+            sendText(chatId, "⚠️ Cú pháp không hợp lệ. Vui lòng nhập /help để xem hướng dẫn sử dụng.");
         }
     }
 
@@ -274,7 +278,9 @@ public class CheckingTimeBot extends TelegramLongPollingBot {
             report.append("⏰ Thời gian check-out dự kiến: ").append(state.expectedCheckOut).append("\n");
         }
         report.append("📊 Tổng thời gian đã đi ra ngoài: ")
-                .append(state.totalOutDuration.toMinutes()).append(" phút");
+                .append(state.totalOutDuration.toMinutes()).append(" phút").append("\n");
+        report.append("  🔢 Số lần đi ra ngoài quá 30 phút: ")
+                .append(state.over30Count).append(" lần");
 
         sendText(chatId, report.toString());
     }
@@ -362,6 +368,24 @@ public class CheckingTimeBot extends TelegramLongPollingBot {
         }
     }
 
+    private void handleHelp(Long chatId) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("*📖 Hướng dẫn sử dụng CheckingTimeBot:*\n\n");
+        sb.append("✅ /ci [HH:mm] - Check-in (mặc định là giờ hiện tại nếu không nhập HH:mm)\n");
+        sb.append("✅ /co [HH:mm] - Check-out và nhận báo cáo\n");
+        sb.append("✅ /go [HH:mm] - Bắt đầu ra ngoài (tối đa 30 phút, tính theo quy tắc)\n");
+        sb.append("✅ /gi [HH:mm] - Quay lại sau khi ra ngoài, cập nhật tổng thời gian\n");
+        sb.append("✅ /lo [HH:mm] - Bắt đầu đi ăn trưa (từ 11:30 trở đi, tối đa 1h30)\n");
+        sb.append("✅ /li [HH:mm] - Kết thúc ăn trưa, tính thời gian vượt quá nếu có\n");
+        sb.append("✅ /rp - Xem báo cáo nhanh (check-in, check-out dự kiến, tổng thời gian ra ngoài)\n");
+        sb.append("✅ /rs - Reset toàn bộ trạng thái\n");
+        sb.append("✅ /help - Hiển thị bảng hướng dẫn này\n\n");
+        sb.append("⚠️ Lưu ý:\n");
+        sb.append("- Thời gian đi ra ngoài tối đa cho phép: 1 giờ (ăn trưa) + 30 phút cho mỗi lần.\n");
+        sb.append("- Nếu vượt quá giới hạn, thời gian dư sẽ cộng vào tổng thời gian ra ngoài.\n");
+        sb.append("- Nếu một lần ra ngoài > 30 phút, sẽ tăng số lần cảnh báo.\n");
+        sendText(chatId, sb.toString());
+    }
 
     private void sendText(Long chatId, String text) {
         SendMessage message = new SendMessage(chatId.toString(), text);
