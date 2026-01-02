@@ -279,7 +279,7 @@ public class CheckingTimeBot extends TelegramLongPollingBot {
         }
         report.append("📊 Tổng thời gian đã đi ra ngoài: ")
                 .append(state.totalOutDuration.toMinutes()).append(" phút").append("\n");
-        report.append("  🔢 Số lần đi ra ngoài quá 30 phút: ")
+        report.append("🔢 Số lần đi ra ngoài quá 30 phút: ")
                 .append(state.over30Count).append(" lần");
 
         sendText(chatId, report.toString());
@@ -298,10 +298,18 @@ public class CheckingTimeBot extends TelegramLongPollingBot {
             UserState state = userStates.computeIfAbsent(chatId, k -> new UserState());
 
             LocalTime minLunchStart = LocalTime.of(11, 30);
+            LocalTime violationThreshold = LocalTime.of(11, 0);
+
             if (lunchOut.isBefore(minLunchStart)) {
+                // Nếu nhập trước 11:30 thì tính từ 11:30
                 Duration extra = Duration.between(lunchOut, minLunchStart);
                 state.totalOutDuration = state.totalOutDuration.plus(extra);
                 lunchOut = minLunchStart;
+
+                // Nếu nhập trước 11:00 thì cộng thêm 1 lần vi phạm
+                if (lunchOut.isBefore(violationThreshold.plusMinutes(30))) {
+                    state.over30Count++;
+                }
             }
 
             state.lastLunchOut = lunchOut;
@@ -319,6 +327,7 @@ public class CheckingTimeBot extends TelegramLongPollingBot {
             sendText(chatId, "❌ Cú pháp không hợp lệ. Vui lòng nhập: /lo hoặc /lo HH:mm");
         }
     }
+
 
     private void handleLunchIn(Long chatId, String msg) {
         try {
